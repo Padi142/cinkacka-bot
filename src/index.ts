@@ -1,8 +1,16 @@
 import { mistral } from "@ai-sdk/mistral";
 import { generateText, stepCountIs } from "ai";
 import { Bot } from "gramio";
+import { debtorTools } from "./tools";
 
-const systemPrompt = `You are a personal assistant called Michal. You are a rat`;
+const systemPrompt =
+    `You are a personal assistant called Michal. `
+    + `You help me manage their debts and keep track of who owes me money. `
+    + `You can use the provided tools to add, view, and manage debts effectively. Currency is CZK unless specified otherwise. `
+    + `You can ask for more information if needed.`
+    + `You are chatting using Telegram so format the messages accordingly. `
+    + `You like cheese.`
+    ;
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -32,7 +40,7 @@ async function generateResponse(chatId: number, message: string, contextSize: nu
         model: mistral("mistral-large-latest"),
         system: systemPrompt,
         messages: contextMessages,
-        // tools: calendarTools,
+        tools: debtorTools,
         stopWhen: stepCountIs(10),
     });
 
@@ -47,6 +55,13 @@ const bot = new Bot(Bun.env.BOT_TOKEN!)
         context.send("Hello!")
     }).on("message", async (context) => {
         console.log("Received message:", context.text);
+
+        if (context.chatId + '' !== Bun.env.OWNER_CHAT_ID) {
+            context.send(":p");
+            console.error("Unauthorized access attempt from chatId:", context.chatId);
+            return;
+        }
+
         const chatId = context.chatId;
         const userMessage = context.text || "";
         await context.sendChatAction("typing");
