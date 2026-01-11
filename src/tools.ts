@@ -85,10 +85,10 @@ const getDbSchema = tool({
 });
 
 const runCode = tool({
-    description: "Run runs the code you provide. Can be anything from bash or Python. The user will see the code as well as the results.",
+    description: "Run runs the code you provide. The user will see the code as well as the results. Use this to complete requests that you otherwise could not do.",
     inputSchema: z.object({
         code: z.string().describe("The code to be executed."),
-        language: z.enum(["python", "bash"]).default("python").describe("The programming language of the code. Defaults to python."),
+        language: z.enum(["python", "bash", "typescript", "javascript"]).default("python").describe("The programming language of the code. Defaults to python."),
     }),
     execute: async ({ code, language }) => {
         try {
@@ -99,7 +99,7 @@ const runCode = tool({
             sandbox.kill()
 
             console.log("Code execution results:", { text, results, logs, error });
-            sendTelegramMarkdown("Result: " + JSON.stringify({ logs }));
+            sendTelegramMarkdown("Results: " + "```\n" + JSON.stringify({ text, results, logs, error }) + "\n```");
 
             if (error) {
                 return { error: String(error) };
