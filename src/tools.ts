@@ -99,7 +99,7 @@ const runCode = tool({
             sandbox.kill()
 
             console.log("Code execution results:", { text, results, logs, error });
-            sendTelegramMarkdown("Results: " + "```\n" + JSON.stringify({ text, results, logs, error }) + "\n```");
+            sendTelegramMarkdown("Results: \n " + "```\n" + JSON.stringify({ text, results, logs, error }) + "\n```");
 
             if (error) {
                 return { error: String(error) };
