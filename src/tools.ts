@@ -7,6 +7,7 @@ import { extractSchemaInfo, mapStringToTableName } from "./db/utils";
 
 import * as schema from "./db/schema";
 import Sandbox from "@e2b/code-interpreter";
+import { sendTelegramMessage, sendTelegramMarkdown, sendTelegramImage } from "./index";
 
 const db_crud = tool({
     description: "Allows basic CRUD operations on the database. Check the schema for table structures before using this tool.",
@@ -83,7 +84,7 @@ const getDbSchema = tool({
 });
 
 const runCode = tool({
-    description: "Run runs the code you provide. Can be anything from bash or Python.",
+    description: "Run runs the code you provide. Can be anything from bash or Python. The user will see the code as well as the results.",
     inputSchema: z.object({
         code: z.string().describe("The code to be executed."),
         language: z.enum(["python", "bash"]).default("python").describe("The programming language of the code. Defaults to python."),
@@ -91,19 +92,57 @@ const runCode = tool({
     execute: async ({ code, language }) => {
         try {
             console.log("Executing code:", code);
+            sendTelegramMarkdown("```\n" + code + "\n```");
             const sandbox = await Sandbox.create()
             const { text, results, logs, error } = await sandbox.runCode(code, { language });
             sandbox.kill()
 
             console.log("Code execution results:", { text, results, logs, error });
+            sendTelegramMarkdown("Result: " + JSON.stringify({ logs }));
 
             if (error) {
                 return { error: String(error) };
             }
 
-            return results;
+            return { output: text, results, logs };
         } catch (error) {
             console.error("Error in runCode tool:", error);
+            return { error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+});
+
+const sendMessage = tool({
+    description: "Send a message to a user via Telegram. Use when necessary to notify the owner.",
+    inputSchema: z.object({
+        message: z.string().describe("The message text to send"),
+    }),
+    execute: async ({ message }) => {
+        try {
+
+            console.log(`Sending message:`, message);
+            const result = await sendTelegramMessage(message);
+            return result;
+        } catch (error) {
+            console.error("Error in sendMessage tool:", error);
+            return { error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+});
+
+const sendImage = tool({
+    description: "Send an image to a user via Telegram from a URL .",
+    inputSchema: z.object({
+        imageUrl: z.string().describe("The URL of the image to send"),
+        caption: z.string().optional().describe("Optional caption for the image"),
+    }),
+    execute: async ({ imageUrl, caption }) => {
+        try {
+            console.log(`Sending image:`, imageUrl);
+            const result = await sendTelegramImage(imageUrl, caption);
+            return result;
+        } catch (error) {
+            console.error("Error in sendImage tool:", error);
             return { error: error instanceof Error ? error.message : String(error) };
         }
     }
@@ -113,4 +152,6 @@ export const allTools = {
     db_crud,
     getDbSchema,
     runCode,
+    sendMessage,
+    sendImage,
 };
