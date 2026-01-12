@@ -153,7 +153,7 @@ const sendImage = tool({
 });
 
 const sendMessageToFriend = tool({
-    description: "Send a message to a friend via Telegram. Use when explicitly told to do so. Message must be in Czech. You must use chatId, not the username. Get the chatId from database.",
+    description: "Send a message to a friend via Telegram. Use when explicitly told to do so. Message must be in Czech. Always get the chatId from the friends table before using this tool.",
     inputSchema: z.object({
         chatId: z.number().describe("The chat ID of the friend to send the message to"),
         message: z.string().describe("The message text to send"),
@@ -246,7 +246,7 @@ const guestCreateRequestFromFriend = tool({
                 request: requestText,
             }).returning();
 
-            await sendTelegramMessageToOwner(`New request from friend (chatId=${chatId}):\n${requestText}`);
+            await sendTelegramMessageToOwner(`New request from friend (${record.handle}):\n${requestText}`);
 
             return result;
         } catch (error) {
