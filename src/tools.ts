@@ -282,9 +282,38 @@ const guestFetchTheirRequestsFromFriends = tool({
     }
 });
 
+const guestSetPronouns = tool({
+    description: "Set pronouns for the guest user in their friend record. Only if they are a friend already.",
+    inputSchema: z.object({
+        chatId: z.number().describe("The chat ID of the guest user."),
+        pronouns: z.string().describe("The pronouns to set for the guest user."),
+    }),
+    execute: async ({ chatId, pronouns }) => {
+        try {
+            console.log(`Setting pronouns for chatId=${chatId} to ${pronouns}`);
+
+            const friendRecord = await getUserFriendRecord(chatId);
+            if (!friendRecord || !friendRecord.approved) {
+                throw new Error(`Chat ID ${chatId} is not an approved friend.`);
+            }
+
+            const result = await db.update(schema.friends)
+                .set({ pronouns })
+                .where(eq(schema.friends.id, friendRecord.id))
+                .returning();
+
+            return result;
+        } catch (error) {
+            console.error("Error in guestSetPronouns tool:", error);
+            return { error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+});
+
 export const guestTools = {
     guestCreateFriendRequest,
     guestGetTheirRequests,
     guestCreateRequestFromFriend,
     guestFetchTheirRequestsFromFriends,
+    guestSetPronouns,
 };
