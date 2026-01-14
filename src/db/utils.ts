@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { debtors, friends, todos, videoIdeas, whatFriendsWantFromMe } from "./schema";
+import { debtors, friends, scheduledMessages, todos, videoIdeas, whatFriendsWantFromMe } from "./schema";
 import { db } from "./client";
 
 export function mapStringToTableName(table: string) {
@@ -14,6 +14,8 @@ export function mapStringToTableName(table: string) {
             return friends;
         case "whatFriendsWantFromMe":
             return whatFriendsWantFromMe;
+        case "scheduledMessages":
+            return scheduledMessages;
         default:
             throw new Error(`Unknown table name: ${table}`);
     }

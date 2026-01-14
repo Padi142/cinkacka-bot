@@ -43,3 +43,12 @@ export const whatFriendsWantFromMe = sqliteTable("what_friends_want_from_me", {
     fulfilled: int({ mode: 'boolean' }).notNull().default(false),
     created: text().default(sql`(CURRENT_DATE)`),
 });
+
+export const scheduledMessages = sqliteTable("scheduled_messages", {
+    id: int().primaryKey({ autoIncrement: true }),
+    chatId: int().notNull(),
+    message: text().notNull(),
+    scheduledFor: text().notNull(), // ISO 8601 datetime string
+    sent: int({ mode: 'boolean' }).notNull().default(false),
+    created: text().default(sql`(CURRENT_DATE)`),
+});

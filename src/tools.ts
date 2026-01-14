@@ -10,12 +10,14 @@ import Sandbox from "@e2b/code-interpreter";
 import { sendTelegramImageToOwner, sendTelegramMarkdownToOwner, sendTelegramMessageToOwner } from "./main_bot";
 import { sendTelegramMessageToChat, sendTelegramImageToChat } from "./guest_bot";
 import { webSearch } from "@exalabs/ai-sdk";
+import { scheduleMessage, cancelScheduledMessage, getPendingScheduledMessages } from "./scheduler";
+import { Cron } from "croner";
 
 const db_crud = tool({
     description: "Allows basic CRUD operations on the database. Check the schema for table structures before using this tool.",
     inputSchema: z.object({
         operation: z.enum(["create", "read", "update", "delete"]).describe("The CRUD operation to perform. Query selects and returns all records. When using delete, ask for clear confirmation."),
-        table: z.enum(["debtors", "video_ideas", "todos", "friends", "whatFriendsWantFromMe"]).describe("The table to perform the operation on."),
+        table: z.enum(["debtors", "video_ideas", "todos", "friends", "whatFriendsWantFromMe", "scheduledMessages"]).describe("The table to perform the operation on."),
         data: z.record(z.string(), z.any()).optional().describe("The data for the operation. Required for create and update operations. Must follow the table schema."),
     }),
     execute: async ({ operation, table, data }) => {
@@ -80,6 +82,7 @@ const getDbSchema = tool({
                 todos: extractSchemaInfo(schema.todos),
                 friends: extractSchemaInfo(schema.friends),
                 whatFriendsWantFromMe: extractSchemaInfo(schema.whatFriendsWantFromMe),
+                scheduledMessages: extractSchemaInfo(schema.scheduledMessages),
             };
         } catch (error) {
             console.error("Error in getDbSchema tool:", error);
@@ -176,12 +179,92 @@ const sendMessageToFriend = tool({
     }
 });
 
+const scheduleReminder = tool({
+    description: "Schedule a reminder message to be sent at a specific future time. Supports relative time expressions like 'in 2 hours', 'tomorrow at 3pm', 'next Friday', etc.",
+    inputSchema: z.object({
+        chatId: z.number().optional().describe("The chat ID to send the reminder to. If not provided, defaults to owner."),
+        message: z.string().describe("The reminder message text"),
+        scheduledTime: z.string().describe("When to send the reminder. Can be an ISO datetime string, or relative time like 'in 2 hours', 'tomorrow at 3pm', 'next Friday', etc."),
+    }),
+    execute: async ({ chatId, message, scheduledTime }) => {
+        try {
+            const targetChatId = chatId || parseInt(Bun.env.OWNER_CHAT_ID || "0", 10);
+            let fireAt: Date;
+
+            const isoParsed = new Date(scheduledTime);
+            if (!isNaN(isoParsed.getTime())) {
+                fireAt = isoParsed;
+            } else {
+                const now = new Date();
+                const cron = new Cron(scheduledTime, { timezone: 'auto' });
+                fireAt = cron.nextRun()!;
+
+                if (!fireAt || fireAt <= now) {
+                    throw new Error(`Invalid scheduled time: ${scheduledTime}`);
+                }
+            }
+
+            const result = await scheduleMessage(targetChatId, message, fireAt);
+            return {
+                success: true,
+                scheduledFor: result.scheduledFor,
+                id: result.id,
+                message: `Reminder scheduled for ${fireAt.toLocaleString()}`
+            };
+        } catch (error) {
+            console.error("Error in scheduleReminder tool:", error);
+            return { error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+});
+
+const cancelReminder = tool({
+    description: "Cancel a scheduled reminder by its ID.",
+    inputSchema: z.object({
+        id: z.number().describe("The ID of the scheduled message to cancel."),
+    }),
+    execute: async ({ id }) => {
+        try {
+            const success = await cancelScheduledMessage(id);
+            return { success, message: success ? `Reminder ${id} cancelled` : `Reminder ${id} not found` };
+        } catch (error) {
+            console.error("Error in cancelReminder tool:", error);
+            return { error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+});
+
+const listPendingReminders = tool({
+    description: "List all pending scheduled reminders.",
+    inputSchema: z.object({}),
+    execute: async () => {
+        try {
+            const reminders = await getPendingScheduledMessages();
+            return {
+                count: reminders.length,
+                reminders: reminders.map(r => ({
+                    id: r.id,
+                    chatId: r.chatId,
+                    message: r.message,
+                    scheduledFor: r.scheduledFor,
+                }))
+            };
+        } catch (error) {
+            console.error("Error in listPendingReminders tool:", error);
+            return { error: error instanceof Error ? error.message : String(error) };
+        }
+    }
+});
+
 export const allTools = {
     db_crud,
     getDbSchema,
     runCode,
     sendMessage,
     sendMessageToFriend,
+    scheduleReminder,
+    cancelReminder,
+    listPendingReminders,
     webSearch: webSearch(),
 };
 

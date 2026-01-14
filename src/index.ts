@@ -2,6 +2,7 @@ import { Bot } from "gramio";
 import { generateResponseForOwner, sendTelegramMessageToOwner } from "./main_bot";
 import { generateResponseForGuest, sendTelegramMessageToChat } from "./guest_bot";
 import { downloadTelegramImage } from "./image_utils";
+import { initializeScheduler } from "./scheduler";
 
 
 export const bot = new Bot(Bun.env.BOT_TOKEN!)
@@ -69,6 +70,9 @@ export const bot = new Bot(Bun.env.BOT_TOKEN!)
         const botResponse = await generateResponseForGuest(chatId, userMessage, userName, imageBuffer);
         await sendTelegramMessageToChat(chatId, botResponse);
     })
-    .onStart(({ info }) => console.log(`✨ Bot ${info.username} was started!`));
+    .onStart(async ({ info }) => {
+        console.log(`✨ Bot ${info.username} was started!`);
+        await initializeScheduler();
+    });
 
 bot.start();
