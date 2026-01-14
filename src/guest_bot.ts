@@ -97,3 +97,18 @@ export const sendTelegramMessageToChat = async (chatId: number, message: string)
         return { error: error instanceof Error ? error.message : String(error) };
     }
 }
+
+export const sendTelegramImageToChat = async (chatId: number, imageUrl: string, caption?: string) => {
+    try {
+        console.log(`Sending image to chatId=${chatId}:`, imageUrl);
+        const result = await bot.api.sendPhoto({
+            chat_id: chatId,
+            photo: imageUrl,
+            caption,
+        });
+        return { success: true, result };
+    } catch (error) {
+        console.error("Error in sendTelegramImageToChat:", error);
+        return { error: error instanceof Error ? error.message : String(error) };
+    }
+}

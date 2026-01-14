@@ -8,7 +8,7 @@ import { extractSchemaInfo, getUserFriendRecord, mapStringToTableName } from "./
 import * as schema from "./db/schema";
 import Sandbox from "@e2b/code-interpreter";
 import { sendTelegramImageToOwner, sendTelegramMarkdownToOwner, sendTelegramMessageToOwner } from "./main_bot";
-import { sendTelegramMessageToChat } from "./guest_bot";
+import { sendTelegramMessageToChat, sendTelegramImageToChat } from "./guest_bot";
 import { webSearch } from "@exalabs/ai-sdk";
 
 const db_crud = tool({
@@ -118,16 +118,26 @@ const runCode = tool({
 });
 
 const sendMessage = tool({
-    description: "Send a message to a user via Telegram. Use when necessary to notify the owner.",
+    description: "Send a message, an image, or both to the owner via Telegram. Use when necessary to notify the owner.",
     inputSchema: z.object({
-        message: z.string().describe("The message text to send"),
+        message: z.string().optional().describe("The message text to send"),
+        imageUrl: z.string().optional().describe("Optional URL of an image to send"),
+        caption: z.string().optional().describe("Optional caption for the image (used when sending an image)"),
     }),
-    execute: async ({ message }) => {
+    execute: async ({ message, imageUrl, caption }) => {
         try {
 
-            console.log(`Sending message:`, message);
-            const result = await sendTelegramMessageToOwner(message);
-            return result;
+            if (imageUrl) {
+                console.log(`Sending image:`, imageUrl);
+                const result = await sendTelegramImageToOwner(imageUrl, caption || message);
+                return result;
+            } else if (message) {
+                console.log(`Sending message:`, message);
+                const result = await sendTelegramMessageToOwner(message);
+                return result;
+            }
+
+            throw new Error("Either message or imageUrl must be provided");
         } catch (error) {
             console.error("Error in sendMessage tool:", error);
             return { error: error instanceof Error ? error.message : String(error) };
@@ -135,37 +145,30 @@ const sendMessage = tool({
     }
 });
 
-const sendImage = tool({
-    description: "Send an image to a user via Telegram from a URL .",
-    inputSchema: z.object({
-        imageUrl: z.string().describe("The URL of the image to send"),
-        caption: z.string().optional().describe("Optional caption for the image"),
-    }),
-    execute: async ({ imageUrl, caption }) => {
-        try {
-            console.log(`Sending image:`, imageUrl);
-            const result = await sendTelegramImageToOwner(imageUrl, caption);
-            return result;
-        } catch (error) {
-            console.error("Error in sendImage tool:", error);
-            return { error: error instanceof Error ? error.message : String(error) };
-        }
-    }
-});
-
 const sendMessageToFriend = tool({
-    description: "Send a message to a friend via Telegram. Use when explicitly told to do so. Message must be in Czech. Always get the chatId from the friends table before using this tool.",
+    description: "Send a message, an image, or both to a friend via Telegram. Use when explicitly told to do so. Message must be in Czech. Always get the chatId from the friends table before using this tool.",
     inputSchema: z.object({
         chatId: z.number().describe("The chat ID of the friend to send the message to"),
-        message: z.string().describe("The message text to send"),
+        message: z.string().optional().describe("The message text to send"),
+        imageUrl: z.string().optional().describe("Optional URL of an image to send"),
+        caption: z.string().optional().describe("Optional caption for the image (used when sending an image)"),
     }),
-    execute: async ({ chatId, message }) => {
+    execute: async ({ chatId, message, imageUrl, caption }) => {
         try {
 
-            console.log(`Sending message to friend chatId=${chatId}:`, message);
-            const result = await sendTelegramMessageToChat(chatId, message);
-            await sendTelegramMessageToOwner(`Sent message to friend (chatId=${chatId}):\n${message}`);
-            return { success: true, result };
+            if (imageUrl) {
+                console.log(`Sending image to friend chatId=${chatId}:`, imageUrl);
+                const result = await sendTelegramImageToChat(chatId, imageUrl, caption || message);
+                await sendTelegramMessageToOwner(`Sent image to friend (chatId=${chatId}):\n${imageUrl}`);
+                return { success: true, result };
+            } else if (message) {
+                console.log(`Sending message to friend chatId=${chatId}:`, message);
+                const result = await sendTelegramMessageToChat(chatId, message);
+                await sendTelegramMessageToOwner(`Sent message to friend (chatId=${chatId}):\n${message}`);
+                return { success: true, result };
+            }
+
+            throw new Error("Either message or imageUrl must be provided");
         } catch (error) {
             console.error("Error in sendMessageToFriend tool:", error);
             return { error: error instanceof Error ? error.message : String(error) };
@@ -178,7 +181,6 @@ export const allTools = {
     getDbSchema,
     runCode,
     sendMessage,
-    sendImage,
     sendMessageToFriend,
     webSearch: webSearch(),
 };
