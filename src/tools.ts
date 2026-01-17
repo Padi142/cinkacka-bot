@@ -4,6 +4,7 @@ import { db } from "./db/client";
 import { debtors } from "./db/schema";
 import { eq } from "drizzle-orm";
 import { extractSchemaInfo, getUserFriendRecord, mapStringToTableName } from "./db/utils";
+import { parseRelativeTime, parseViennaTime } from "./time_utils";
 
 import * as schema from "./db/schema";
 import Sandbox from "@e2b/code-interpreter";
@@ -180,27 +181,26 @@ const sendMessageToFriend = tool({
 });
 
 const scheduleReminder = tool({
-    description: "Schedule a reminder message to be sent at a specific future time. Supports relative time expressions like 'in 2 hours', 'tomorrow at 3pm', 'next Friday', etc.",
+    description: "Schedule a reminder message to be sent at a specific future time. All times are in Vienna timezone (GMT+1). IMPORTANT: When generating ISO datetime strings, do NOT include 'Z' suffix. Use format like '2026-01-17T09:00:00' (no timezone) or add '+01:00' for Vienna time.",
     inputSchema: z.object({
         chatId: z.number().optional().describe("The chat ID to send the reminder to. If not provided, defaults to owner."),
         message: z.string().describe("The reminder message text"),
-        scheduledTime: z.string().describe("When to send the reminder. Can be an ISO datetime string, or relative time like 'in 2 hours', 'tomorrow at 3pm', 'next Friday', etc."),
+        scheduledTime: z.string().describe("When to send the reminder. Can be an ISO datetime string (e.g., '2026-01-17T09:00:00'), or relative time like 'in 2 hours', 'in 3 days', etc. Do NOT use 'Z' suffix."),
     }),
     execute: async ({ chatId, message, scheduledTime }) => {
         try {
             const targetChatId = chatId || parseInt(Bun.env.OWNER_CHAT_ID || "0", 10);
             let fireAt: Date;
 
-            const isoParsed = new Date(scheduledTime);
-            if (!isNaN(isoParsed.getTime())) {
-                fireAt = isoParsed;
+            const relativeParsed = parseRelativeTime(scheduledTime);
+            if (relativeParsed) {
+                fireAt = relativeParsed;
             } else {
-                const now = new Date();
-                const cron = new Cron(scheduledTime, { timezone: 'auto' });
-                fireAt = cron.nextRun()!;
-
-                if (!fireAt || fireAt <= now) {
-                    throw new Error(`Invalid scheduled time: ${scheduledTime}`);
+                const viennaParsed = parseViennaTime(scheduledTime);
+                if (viennaParsed) {
+                    fireAt = viennaParsed;
+                } else {
+                    throw new Error(`Invalid scheduled time: ${scheduledTime}. Use ISO datetime (e.g., 2026-01-17T09:00:00) or relative time (e.g., 'in 2 hours').`);
                 }
             }
 
@@ -209,7 +209,7 @@ const scheduleReminder = tool({
                 success: true,
                 scheduledFor: result.scheduledFor,
                 id: result.id,
-                message: `Reminder scheduled for ${fireAt.toLocaleString()}`
+                message: `Reminder scheduled for ${fireAt.toLocaleString('en-GB', { timeZone: 'Europe/Vienna' })}`
             };
         } catch (error) {
             console.error("Error in scheduleReminder tool:", error);

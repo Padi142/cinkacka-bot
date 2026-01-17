@@ -71,19 +71,25 @@ export async function getPendingScheduledMessages() {
  * Create a cron job for a scheduled message.
  */
 function scheduleJob(id: number, chatId: number, message: string, fireAt: Date) {
+    const now = new Date();
+    const viennaTime = fireAt.toLocaleString('en-GB', { timeZone: 'Europe/Vienna' });
+    const nowViennaTime = now.toLocaleString('en-GB', { timeZone: 'Europe/Vienna' });
+
+    console.log(`[scheduleJob] Message id=${id}, Target (Vienna): ${viennaTime}, Now (Vienna): ${nowViennaTime}`);
+
     // Don't schedule if already in the past
-    if (fireAt <= new Date()) {
+    if (fireAt <= now) {
         console.log(`Scheduled message id=${id} is in the past, sending immediately`);
         sendScheduledMessage(id, chatId, message);
         return;
     }
 
-    const job = new Cron(fireAt, async () => {
+    const job = new Cron(fireAt, { timezone: 'Europe/Vienna' }, async () => {
         await sendScheduledMessage(id, chatId, message);
     });
 
     activeJobs.set(id, job);
-    console.log(`Created cron job for message id=${id}, fires at ${fireAt.toISOString()}`);
+    console.log(`Created cron job for message id=${id}, fires at ${fireAt.toISOString()} (Vienna: ${viennaTime})`);
 }
 
 /**
